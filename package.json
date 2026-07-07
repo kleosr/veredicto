@@ -1,0 +1,37 @@
+{
+  "name": "veredicto",
+  "version": "0.1.0",
+  "description": "Agent-native TypeScript checker: batch-verify candidate patches against a live project session and get structured verdicts, not prose.",
+  "keywords": [
+    "typescript",
+    "ai-agents",
+    "diagnostics",
+    "type-checking",
+    "code-repair",
+    "agentic-coding"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "bin": {
+    "veredicto": "dist/cli.js"
+  },
+  "main": "dist/session.js",
+  "files": ["dist", "docs", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "npm run build && node --test 'test/**/*.test.mjs'",
+    "bench": "npm run build && node bench/bench.mjs",
+    "lint": "biome ci .",
+    "lint:fix": "biome check --write .",
+    "semgrep": "bash scripts/semgrep-max.sh"
+  },
+  "dependencies": {
+    "typescript": "^5.5.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.0.0"
+  }
+}
