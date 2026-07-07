@@ -11,6 +11,14 @@
     "agentic-coding"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kleosr/veredicto.git"
+  },
+  "homepage": "https://github.com/kleosr/veredicto#readme",
+  "bugs": {
+    "url": "https://github.com/kleosr/veredicto/issues"
+  },
   "engines": {
     "node": ">=18.17"
   },
@@ -18,9 +26,11 @@
     "veredicto": "dist/cli.js"
   },
   "main": "dist/session.js",
+  "types": "dist/session.d.ts",
   "files": ["dist", "docs", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p .",
+    "prepublishOnly": "npm run build",
     "test": "npm run build && node --test 'test/**/*.test.mjs'",
     "bench": "npm run build && node bench/bench.mjs",
     "lint": "biome ci .",

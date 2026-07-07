@@ -18,7 +18,6 @@ One sentence: a daemon + CLI that batch-verifies candidate TypeScript patches ag
 - Parse unified diffs — candidates are full-file contents
 - Run candidates in parallel workers
 - Wrap tsgo or any non-tsc checker
-- Publish to npm
 - Add auth or allow non-loopback binding
 
 ## STUCK brake

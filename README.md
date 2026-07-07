@@ -23,11 +23,11 @@ veredicto takes the agent-first interface to the language agents already write a
 ## Quickstart
 
 ```bash
-npm install
-npm run build
+npm install -g veredicto
+# or: npx veredicto …
 
 # daemon mode
-node dist/cli.js serve --project path/to/tsconfig.json --port 4117
+veredicto serve --project path/to/tsconfig.json --port 4117
 curl -s localhost:4117/v1/check -d '{
   "fixes": true,
   "candidates": [
@@ -36,10 +36,10 @@ curl -s localhost:4117/v1/check -d '{
 }'
 
 # one-shot mode
-node dist/cli.js check --project path/to/tsconfig.json --candidates candidates.json --compact
+veredicto check --project path/to/tsconfig.json --candidates candidates.json --compact
 ```
 
-Try it against the bundled fixture first: `--project test/fixture/tsconfig.json`. The fixture ships with one deliberate baseline error so you can watch `fixedErrors` move.
+From a clone, the same entry points are `npm run build` then `node dist/cli.js …`. Against the bundled fixture (`--project test/fixture/tsconfig.json`) you can watch `fixedErrors` move — the fixture ships with one deliberate baseline error.
 
 ## Verdict semantics
 
@@ -63,11 +63,13 @@ Candidates are full-file contents, not diffs. The delta is keyed by file + code 
 
 ## Roadmap
 
-Unified-diff input. Parallel candidate workers. A tsgo backend when Microsoft's native port stabilizes. npm publish.
+Unified-diff input. Parallel candidate workers. A tsgo backend when Microsoft's native port stabilizes.
 
 ## Development
 
 ```bash
+npm install
+npm run build
 npm test          # build + node:test suite (core + HTTP)
 npm run bench     # cold tsc vs warm session, real numbers
 npm run lint      # Biome, every rule on, nursery included, must exit 0
