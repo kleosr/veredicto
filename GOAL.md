@@ -11,7 +11,7 @@ One sentence: a daemon + CLI that batch-verifies candidate TypeScript patches ag
 - [x] `npm run bench` shows warm per-candidate check faster than cold `tsc --noEmit` (34.9 ms vs 6,640 ms avg in the build container)
 - [x] `npx @biomejs/biome ci .` exits 0 — every rule on, nursery included, suppressions only inline with a reason
 - [x] `npm run semgrep` exits 0 — 159 rules (security-audit, OWASP Top 10, secrets, Trail of Bits, TS/JS packs), 0 findings
-- [ ] Pushed to GitHub, CI green on `main`
+- [x] Pushed to GitHub, CI green on `main`
 
 ## Scope fences (v0.1 will NOT)
 
