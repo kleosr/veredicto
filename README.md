@@ -1,14 +1,14 @@
 # veredicto
 
-Verdicts, not prose. An agent-native TypeScript checker: batch-verify candidate patches against a live project session and get structured JSON back — new errors, fixed errors, repair actions — instead of error text written for a human squinting at a terminal.
+Agent-native TypeScript checker. Batch-verify candidate patches against a live project session and get structured JSON back: new errors, fixed errors, repair actions. Not compiler prose meant for a terminal.
 
 ## Why this exists
 
-Every serious coding agent runs the same loop: write a patch, run the checker, parse prose-shaped errors, guess a fix, repeat. Two things are broken in that loop. The checker restarts from zero on every attempt, and its output format was designed for people, not programs.
+Coding agents run the same loop: write a patch, run the checker, parse prose-shaped errors, guess a fix, repeat. The checker restarts from zero on every attempt, and its output was built for people, not programs.
 
-The industry noticed in 2026. Vercel Labs shipped Zero in May — a brand-new systems language whose compiler emits structured JSON with stable error codes and typed repair IDs. Right interface, wrong side of the adoption valley: nobody's codebase is written in Zero. Researchers made the same point from the other end — compiler feedback quality is a fundamental bottleneck for coding agents (arXiv 2604.13927).
+In 2026 that gap got louder. Vercel Labs shipped Zero in May: a new systems language whose compiler emits structured JSON with stable error codes and typed repair IDs. Good interface; almost nobody's production code is written in Zero. Researchers made the same point from the other end: compiler feedback quality bottlenecks coding agents ([arXiv 2604.13927](https://arxiv.org/abs/2604.13927)).
 
-veredicto takes the agent-first interface to the language agents already write all day. Point it at your `tsconfig.json`, keep a warm session, and throw N candidate patches at it. Each candidate is judged against the project baseline: pass if it introduces no new errors, fail with structured diagnostics plus TypeScript's own code-fix suggestions mapped to precise, editable spans.
+veredicto puts that agent-first interface on TypeScript. Point it at your `tsconfig.json`, keep a warm session, throw N candidate patches at it. Each candidate is judged against the project baseline: pass if it introduces no new errors; fail with structured diagnostics plus TypeScript code-fix suggestions mapped to editable spans.
 
 ## What it does
 
@@ -18,9 +18,9 @@ veredicto takes the agent-first interface to the language agents already write a
 - Catches cross-file damage: patch `math.ts`, and the break it causes in `report.ts` shows up in the verdict.
 - Returns TypeScript code fixes for new errors as structured repair actions (`file`, `position`, `length`, `newText`) with `confidence` and `preconditions`.
 - Optional semantic impact: export signature delta + reference (def–use) fan-out via the checker (`impact: true` / `--impact`).
-- Optional speculative parallel checks via `worker_threads` (`parallel: true` / `--parallel`) — one Session per worker.
+- Optional speculative parallel checks via `worker_threads` (`parallel: true` / `--parallel`). One Session per worker.
 - Speaks HTTP (`POST /v1/check`, `GET /v1/health`) and CLI, with agent-friendly exit codes: 0 all pass, 2 any fail, 1 usage or crash.
-- Has a `--compact` mode when tokens are the budget. Formal schema: [docs/veredicto.schema.json](docs/veredicto.schema.json).
+- Has a `--compact` mode when tokens are tight. Formal schema: [docs/veredicto.schema.json](docs/veredicto.schema.json).
 
 ## Quickstart
 
@@ -44,11 +44,11 @@ veredicto check --project path/to/tsconfig.json --candidates candidates.json --c
 veredicto check --project path/to/tsconfig.json --candidates candidates.json --fixes --impact --parallel
 ```
 
-From a clone, the same entry points are `npm run build` then `node dist/cli.js …`. Against the bundled fixture (`--project test/fixture/tsconfig.json`) you can watch `fixedErrors` move — the fixture ships with one deliberate baseline error.
+From a clone: `npm run build`, then `node dist/cli.js …`. Against the bundled fixture (`--project test/fixture/tsconfig.json`) you can watch `fixedErrors` move; the fixture ships with one deliberate baseline error.
 
 ## Verdict semantics
 
-`pass` means the candidate introduces zero new errors relative to the baseline captured at session start. That is a deliberate choice: an agent fixing one function in a repo with 400 legacy errors should not drown in them, and it should not get credit for them either. `fixedErrors` tells you when a patch actually paid down debt. `totalErrors` never lies about the whole picture.
+`pass` means the candidate introduces zero new errors relative to the baseline captured at session start. An agent fixing one function in a repo with 400 legacy errors should not drown in them, and it should not get credit for them either. `fixedErrors` counts debt the patch actually paid down. `totalErrors` is the absolute count for the whole project under that candidate.
 
 ## Numbers
 
@@ -70,9 +70,9 @@ npm run bench:compare:large        # layered ~92-file app
 npm run bench -- --project path/to/tsconfig.json
 ```
 
-## Limits (on purpose)
+## Limits
 
-Candidates are full-file contents, not diffs. The delta is keyed by file + code + message, so two byte-identical errors in one file collapse into one. Impact is export-signature + references, not a full reaching-definitions solver. No auth — serve binds loopback only and refuses anything else. Parallel mode re-inits a Session per worker (correct isolation, higher init cost).
+Candidates are full-file contents, not diffs. The delta is keyed by file + code + message, so two byte-identical errors in one file collapse into one. Impact is export-signature + references, not a full reaching-definitions solver. No auth: serve binds loopback only and refuses anything else. Parallel mode re-inits a Session per worker (correct isolation, higher init cost).
 
 ## Roadmap
 
@@ -96,7 +96,7 @@ npm run semgrep       # full open-registry stack, must exit 0
 
 | Doc | What |
 | --- | --- |
-| [PITCH.md](PITCH.md) | Full thesis — problem, insight, risks, ask |
+| [PITCH.md](PITCH.md) | Full thesis: problem, insight, risks, ask |
 | [ANNOUNCE.md](ANNOUNCE.md) | Short public announcement draft |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Post-checker phases; what TS owns vs veredicto |
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | Wire contract (HTTP + CLI + library) |
@@ -108,7 +108,7 @@ npm run semgrep       # full open-registry stack, must exit 0
 
 ## Prior art
 
-Vercel Labs' Zero (May 2026) proved agent-first compiler output — for a new language. Cursor's shadow workspace pioneered background language-server checks inside one editor. ai-typescript-check did single-snippet TwoSlash checks in the ChatGPT-plugin era. veredicto is the neutral, project-scale piece: any agent, over the TypeScript you already have.
+Vercel Labs' Zero (May 2026) shipped agent-first compiler output for a new language. Cursor's shadow workspace runs background language-server checks inside the editor. ai-typescript-check did single-snippet TwoSlash checks in the ChatGPT-plugin era. veredicto is the project-scale piece for existing TypeScript: any agent, same protocol over loopback.
 
 ## License
 
