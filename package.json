@@ -1,6 +1,6 @@
 {
   "name": "veredicto",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Agent-native TypeScript checker: batch-verify candidate patches against a live project session and get structured verdicts, not prose.",
   "keywords": [
     "typescript",
@@ -27,12 +27,14 @@
   },
   "main": "dist/session.js",
   "types": "dist/session.d.ts",
-  "files": ["dist", "docs", "README.md", "LICENSE"],
+  "files": ["dist", "docs", "README.md", "LICENSE", "PITCH.md", "ANNOUNCE.md"],
   "scripts": {
     "build": "tsc -p .",
     "prepublishOnly": "npm run build",
     "test": "npm run build && node --test 'test/**/*.test.mjs'",
     "bench": "npm run build && node bench/bench.mjs",
+    "bench:large": "npm run build && node bench/generate-large.mjs && node bench/bench.mjs --project bench/large/tsconfig.json",
+    "example:agent": "npm run build && node examples/agent-loop.mjs",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
     "semgrep": "bash scripts/semgrep-max.sh"

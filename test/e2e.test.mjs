@@ -1,6 +1,8 @@
 // biome-ignore lint/correctness/noNodejsModules: Node-only tool; node: builtins are the platform.
 import assert from "node:assert/strict";
 // biome-ignore lint/correctness/noNodejsModules: Node-only tool; node: builtins are the platform.
+import { spawnSync } from "node:child_process";
+// biome-ignore lint/correctness/noNodejsModules: Node-only tool; node: builtins are the platform.
 import test from "node:test";
 // biome-ignore lint/correctness/noNodejsModules: Node-only tool; node: builtins are the platform.
 import { fileURLToPath } from "node:url";
@@ -8,6 +10,9 @@ import { fileURLToPath } from "node:url";
 import { createServer } from "../dist/server.js";
 // biome-ignore lint/nursery/useImportRestrictions: tests exercise the built public artifact in dist.
 import { Session } from "../dist/session.js";
+
+const CLI = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+const NON_LOOPBACK = /non-loopback/;
 
 const FIXTURE = fileURLToPath(new URL("./fixture/tsconfig.json", import.meta.url));
 
@@ -133,4 +138,14 @@ test("http api returns the same verdicts and rejects bad input", async () => {
   await new Promise((resolve) => {
     server.close(resolve);
   });
+});
+
+test("serve refuses non-loopback hosts", () => {
+  const result = spawnSync(
+    process.execPath,
+    [CLI, "serve", "--project", FIXTURE, "--host", "0.0.0.0", "--port", "4117"],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, NON_LOOPBACK);
 });

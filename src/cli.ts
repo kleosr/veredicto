@@ -11,13 +11,16 @@ const USAGE = `veredicto — agent-native TypeScript checker
 
 usage:
   veredicto check --project <tsconfig.json> --candidates <candidates.json> [--fixes] [--compact]
-  veredicto serve --project <tsconfig.json> [--port <n>] [--host <address>]
+  veredicto serve --project <tsconfig.json> [--port <n>]
 
 candidates.json shape:
   [{ "id": "patch-a", "files": { "src/x.ts": "<full new content>", "src/gone.ts": null } }]
 
 exit codes for check: 0 all candidates pass, 2 at least one fails, 1 usage or crash.
+serve always binds 127.0.0.1 (no auth in v1).
 `;
+
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
 function main(): number {
   const [command, ...rest] = process.argv.slice(2);
@@ -76,12 +79,16 @@ function runServe(argv: string[]): number {
     process.stderr.write(`invalid port: ${String(values.port)}\n`);
     return 1;
   }
-  const session = new Session(values.project);
-  // ponytail: binds 127.0.0.1 with no auth — a local, single-user tool.
-  // Ceiling: any remote bind trusts every client on the network with your
-  // project. Upgrade path: bearer token before allowing a non-loopback host.
-  const server = createServer(session);
   const host = values.host ?? "127.0.0.1";
+  // v1 has no auth. Non-loopback binds would expose the project to the network.
+  if (!LOOPBACK_HOSTS.has(host)) {
+    process.stderr.write(
+      `refusing non-loopback host ${JSON.stringify(host)} (v1 has no auth; use 127.0.0.1)\n`,
+    );
+    return 1;
+  }
+  const session = new Session(values.project);
+  const server = createServer(session);
   server.listen(port, host, () => {
     process.stdout.write(
       `veredicto listening on http://${host}:${port} project=${session.project} files=${session.fileCount()} baselineErrors=${session.baselineErrorCount()}\n`,

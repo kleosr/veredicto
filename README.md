@@ -47,36 +47,53 @@ From a clone, the same entry points are `npm run build` then `node dist/cli.js �
 
 ## Numbers
 
-Measured in a slow build container on the bundled 3-file fixture, 5 runs each:
+Measured locally; full tables and methodology in [docs/BENCH.md](docs/BENCH.md):
 
-| what | cost |
-| --- | --- |
-| cold `tsc --noEmit`, per candidate | ~6,640 ms |
-| veredicto session init (incl. baseline check), once | ~2,090 ms |
-| veredicto warm check, per candidate | ~34.9 ms |
+| project | cold `tsc` / candidate | init (once) | warm / candidate | speedup |
+| --- | --- | --- | --- | --- |
+| Bundled fixture (2 files) | ~1,018 ms | ~384 ms | ~8.5 ms | ~119× |
+| Synthetic 200-module project | ~424 ms | ~492 ms | ~110 ms | ~4× |
 
-That is a ~190x per-candidate speedup after init — on a toy project, so read it narrowly. The honest claim: you stop paying process startup and full re-parse on every attempt. On a large repo, init costs more and warm checks scale with what actually changed. Run `npm run bench` on your own machine before quoting numbers.
+The honest claim: you stop paying process startup and full re-parse on every attempt. Init costs more on large repos; warm checks scale with what changed. Run your own:
+
+```bash
+npm run bench                              # fixture
+npm run bench:large                        # generate 200 modules + bench
+npm run bench -- --project path/to/tsconfig.json
+```
 
 ## Limits (v0.1, on purpose)
 
-Candidates are full-file contents, not diffs. The delta is keyed by file + code + message, so two byte-identical errors in one file collapse into one. One process, candidates checked sequentially. No auth — it binds `127.0.0.1` and should stay there.
+Candidates are full-file contents, not diffs. The delta is keyed by file + code + message, so two byte-identical errors in one file collapse into one. One process, candidates checked sequentially. No auth — serve binds loopback only and refuses anything else.
 
 ## Roadmap
 
-Unified-diff input. Parallel candidate workers. A tsgo backend when Microsoft's native port stabilizes.
+Unified-diff input. Parallel candidate workers. A tsgo backend when Microsoft's native port stabilizes. Same protocol over other checkers.
 
 ## Development
 
 ```bash
 npm install
 npm run build
-npm test          # build + node:test suite (core + HTTP)
-npm run bench     # cold tsc vs warm session, real numbers
-npm run lint      # Biome, every rule on, nursery included, must exit 0
-npm run semgrep   # full open-registry stack, must exit 0
+npm test              # build + node:test suite (core + HTTP)
+npm run bench         # cold tsc vs warm session (fixture)
+npm run bench:large   # synthetic 200-module project
+npm run example:agent # drop-in agent loop against the fixture
+npm run lint          # Biome, every rule on, nursery included, must exit 0
+npm run semgrep       # full open-registry stack, must exit 0
 ```
 
-Protocol details live in [docs/PROTOCOL.md](docs/PROTOCOL.md). Scope and done-criteria live in [GOAL.md](GOAL.md).
+## Docs
+
+| Doc | What |
+| --- | --- |
+| [PITCH.md](PITCH.md) | Full thesis — problem, insight, risks, ask |
+| [ANNOUNCE.md](ANNOUNCE.md) | Short public announcement draft |
+| [docs/PROTOCOL.md](docs/PROTOCOL.md) | Wire contract (HTTP + CLI + library) |
+| [docs/INTEGRATION.md](docs/INTEGRATION.md) | Agent / CI integration recipe |
+| [docs/BENCH.md](docs/BENCH.md) | Measured numbers + how to reproduce |
+| [GOAL.md](GOAL.md) | Scope and done-criteria |
+| [DEBT.md](DEBT.md) | Open debt |
 
 ## Prior art
 

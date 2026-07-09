@@ -1,7 +1,15 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "files": {
-    "ignore": ["dist", "node_modules", "package-lock.json"]
+    "ignore": [
+      "dist",
+      "node_modules",
+      "package-lock.json",
+      "bench/large",
+      "gitleaks-report.json",
+      "noseyparker-report.json",
+      "sbom.spdx.json"
+    ]
   },
   "formatter": {
     "enabled": true,

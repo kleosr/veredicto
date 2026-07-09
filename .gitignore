@@ -1,4 +1,10 @@
 node_modules/
 dist/
+bench/large/
 *.log
 .DS_Store
+*.tgz
+gitleaks-report.json
+noseyparker-report.json
+noseyparker-report.txt
+sbom.spdx.json
