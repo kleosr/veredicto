@@ -6,7 +6,7 @@
 
 AI agents write a huge share of new TypeScript. The typechecker still answers them in prose meant for a human staring at a terminal.
 
-**veredicto** is a small open-source daemon + CLI that keeps a warm TypeScript language service over your real project and batch-checks candidate patches as in-memory overlays. You get structured JSON back: pass/fail relative to baseline, what broke, what got fixed, and TypeScript's own code fixes as editable repair actions — in tens of milliseconds after init, not seconds of cold `tsc` per attempt.
+**veredicto** is a small open-source daemon + CLI that keeps a warm TypeScript language service over your real project and batch-checks candidate patches as in-memory overlays. You get structured JSON back: pass/fail relative to baseline, what broke, what got fixed, TypeScript code fixes with confidence/preconditions, and optional semantic impact (export signature + reference fan-out) — in tens of milliseconds after init, not seconds of cold `tsc` per attempt.
 
 ```bash
 npm install -g veredicto
@@ -26,7 +26,7 @@ curl -s localhost:4117/v1/check -d '{
 
 Every agent loop is the same: patch → checker → parse error → retry. Two things are broken.
 
-1. **Cost.** Cold `tsc --noEmit` restarts from zero every time. On this machine: ~1.0 s → ~8.5 ms on the tiny fixture (~119×), and ~424 ms → ~110 ms on a 200-file synthetic project (~4× after a one-time init). Slower containers see multi-second cold starts.
+1. **Cost.** Cold `tsc --noEmit` restarts from zero every time. Honest before/after agent loop (write disk → spawn tsc → restore vs warm Session): on a 92-file layered app with 20 candidates, **~7.5 s → ~1.3 s (~5.9× full-loop)**; fixture 10 candidates ~22×. See [docs/BENCH.md](docs/BENCH.md).
 2. **Format.** Prose diagnostics burn tokens and force guessing. [arXiv 2604.13927](https://arxiv.org/abs/2604.13927) calls compiler feedback a fundamental bottleneck and asks for a co-designed interface. Vercel Labs' [Zero](https://github.com/vercel-labs/zero) (May 2026) proved the agent-first JSON shape — for a brand-new language. veredicto brings that interface to the TypeScript you already have.
 
 ### The three decisions

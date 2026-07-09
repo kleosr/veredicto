@@ -8,7 +8,7 @@ AI agents already write an enormous share of the world's new TypeScript, and the
 
 Every serious coding agent runs the same loop: write a patch, run the checker, interpret the error, retry. The loop is broken in two independent places.
 
-**Cost.** Every attempt pays full process startup. A cold `tsc --noEmit` costs hundreds of milliseconds to seconds per candidate — measured at ~1.0 s on the bundled fixture and ~0.4 s on a 200-file synthetic project on a warm local machine (slower containers see multi-second cold starts; see [docs/BENCH.md](docs/BENCH.md)). An agent exploring ten variants of one fix pays ten startups for information a warm session serves in milliseconds to low hundreds of milliseconds.
+**Cost.** Every attempt pays full process startup. The honest before/after is the agent loop itself: write patch to disk → spawn `tsc --noEmit` → restore, versus one warm Session. On this machine, 10 candidates on a 92-file layered app: **~3.7 s before vs ~0.85 s after (~4.4× full-loop)**; on the tiny fixture, **~10 s vs ~0.45 s (~22×)**. Per-candidate warm checks are ~8–45 ms after init. See [docs/BENCH.md](docs/BENCH.md).
 
 **Format.** The output is text for humans. The agent burns tokens parsing prose, then guesses. This is not a vibe — [arXiv 2604.13927](https://arxiv.org/abs/2604.13927) (*AI Coding Agents Need Better Compiler Remarks*, Deo / Campanoni / McMichen, April 2026) measures compiler feedback as a fundamental bottleneck for coding agents and calls for a co-designed interface. Precise structured remarks raised success 3.3×; ambiguous remarks actively caused semantic-breaking hallucinations. The bottleneck is the interface, not the agent.
 
@@ -46,7 +46,7 @@ Wire format: [docs/PROTOCOL.md](docs/PROTOCOL.md). Drop-in agent loop: [docs/INT
 
 **1. Delta verdicts, not absolute.** `pass` means zero *new* errors. A legacy repo with 400 pre-existing errors doesn't drown the agent fixing one function — and the agent doesn't take credit for debt it didn't pay. `fixedErrors` measures real cleanup. `totalErrors` never lies about the whole picture.
 
-**2. One warm session across candidates.** Incremental analysis is the product. On the bundled fixture: ~119× per candidate after init (~8.5 ms warm vs ~1.0 s cold). On a 200-file synthetic project: ~4× (~110 ms warm vs ~424 ms cold) with init paid once — see [docs/BENCH.md](docs/BENCH.md). Init costs more on large repos; warm checks scale with what changed. Quote your own `--project` numbers, not these.
+**2. One warm session across candidates.** Incremental analysis is the product. Full agent-loop wall-clock on a 92-file layered app (20 candidates): ~5.9× vs disk+`tsc`. Per-candidate warm after init: ~8.7× on that app, ~104× on the toy fixture — see [docs/BENCH.md](docs/BENCH.md). Quote the layered full-loop ratio, or your own `npm run bench:compare -- --project …`.
 
 **3. Neutrality.** No editor, no vendor, JSON over loopback. It serves Claude Code, OpenCode, a CI runner, or an eval pipeline with exactly the same face. Neutrality isn't modesty; it's the protocol position.
 

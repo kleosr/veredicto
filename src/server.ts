@@ -1,8 +1,9 @@
 import type http from "node:http";
 // biome-ignore lint/correctness/noNodejsModules: Node-only tool; node: builtins are the platform.
 import { createServer as createHttpServer } from "node:http";
+import { checkAllParallel } from "./parallel.js";
 import type { Session } from "./session.js";
-import { validateCandidates } from "./verdict.js";
+import { PROTOCOL_VERSION, validateCandidates } from "./verdict.js";
 
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 
@@ -23,6 +24,7 @@ async function route(
     if (request.method === "GET" && request.url === "/v1/health") {
       sendJson(response, 200, {
         ok: true,
+        protocolVersion: PROTOCOL_VERSION,
         project: session.project,
         files: session.fileCount(),
         baselineErrors: session.baselineErrorCount(),
@@ -33,7 +35,20 @@ async function route(
       const body = await readBody(request);
       const payload: unknown = JSON.parse(body);
       const candidates = validateCandidates(extractCandidates(payload));
-      sendJson(response, 200, session.checkAll(candidates, { withFixes: extractFixes(payload) }));
+      const options = {
+        withFixes: extractFlag(payload, "fixes"),
+        withImpact: extractFlag(payload, "impact"),
+      };
+      if (extractFlag(payload, "parallel")) {
+        const workers = extractWorkers(payload);
+        sendJson(
+          response,
+          200,
+          await checkAllParallel(session.project, candidates, { ...options, workers }),
+        );
+        return;
+      }
+      sendJson(response, 200, session.checkAll(candidates, options));
       return;
     }
     sendJson(response, 404, { error: "not found" });
@@ -51,12 +66,26 @@ function extractCandidates(payload: unknown): unknown {
   return (payload as { candidates?: unknown }).candidates;
 }
 
-function extractFixes(payload: unknown): boolean {
+function extractFlag(payload: unknown, key: "fixes" | "impact" | "parallel"): boolean {
   return (
     typeof payload === "object" &&
     payload !== null &&
-    (payload as { fixes?: unknown }).fixes === true
+    (payload as Record<string, unknown>)[key] === true
   );
+}
+
+function extractWorkers(payload: unknown): number | undefined {
+  if (typeof payload !== "object" || payload === null) {
+    return undefined;
+  }
+  const workers = (payload as { workers?: unknown }).workers;
+  if (workers === undefined) {
+    return undefined;
+  }
+  if (typeof workers !== "number" || !Number.isInteger(workers) || workers < 1) {
+    throw new TypeError("workers must be a positive integer");
+  }
+  return workers;
 }
 
 function readBody(request: http.IncomingMessage): Promise<string> {

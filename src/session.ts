@@ -1,11 +1,13 @@
 // biome-ignore lint/correctness/noNodejsModules: Node-only tool; node: builtins are the platform.
 import path from "node:path";
 import ts from "typescript";
+import { type ExportSignature, buildSemanticImpact, collectExportSignatures } from "./impact.js";
 import {
   type Candidate,
   type CandidateFiles,
   type CandidateResult,
   type CheckResponse,
+  PROTOCOL_VERSION,
   type RepairAction,
   type VerdictDiagnostic,
   diffDiagnostics,
@@ -19,6 +21,7 @@ const FIXES_PER_CANDIDATE_LIMIT = 3;
 
 export interface CheckOptions {
   withFixes?: boolean;
+  withImpact?: boolean;
 }
 
 interface Overlay {
@@ -33,6 +36,7 @@ export class Session {
   private readonly versions = new Map<string, number>();
   private readonly service: ts.LanguageService;
   private readonly baselineDiagnostics: VerdictDiagnostic[];
+  private readonly baselineExports = new Map<string, Map<string, ExportSignature>>();
 
   constructor(configPath: string) {
     this.configPath = path.resolve(configPath);
@@ -40,6 +44,12 @@ export class Session {
     this.parsed = parseConfig(this.configPath);
     this.service = ts.createLanguageService(this.createHost(), ts.createDocumentRegistry());
     this.baselineDiagnostics = this.collectDiagnostics();
+    const program = this.service.getProgram();
+    if (program !== undefined) {
+      for (const fileName of this.rootFileNames()) {
+        this.baselineExports.set(fileName, collectExportSignatures(program, fileName));
+      }
+    }
   }
 
   get project(): string {
@@ -60,6 +70,7 @@ export class Session {
 
   checkAll(candidates: Candidate[], options: CheckOptions = {}): CheckResponse {
     return {
+      protocolVersion: PROTOCOL_VERSION,
       project: this.configPath,
       baseline: { errorCount: this.baselineErrorCount() },
       results: candidates.map((candidate) => this.checkCandidate(candidate, options)),
@@ -74,6 +85,8 @@ export class Session {
       const delta = diffDiagnostics(this.baselineDiagnostics, current);
       const newErrors = delta.added.filter(isError);
       const fixes = options.withFixes === true ? this.collectFixes(newErrors) : [];
+      const impact =
+        options.withImpact === true ? this.collectImpact(Object.keys(candidate.files)) : null;
       return {
         id: candidate.id,
         verdict: newErrors.length === 0 ? "pass" : "fail",
@@ -86,10 +99,25 @@ export class Session {
         newDiagnostics: delta.added,
         fixedDiagnostics: delta.removed,
         fixes,
+        impact,
       };
     } finally {
       this.restore(candidate.files);
     }
+  }
+
+  private collectImpact(relativePaths: readonly string[]) {
+    const program = this.service.getProgram();
+    if (program === undefined) {
+      return { touchedFiles: [], changedExports: [] };
+    }
+    const touchedFiles = relativePaths.map((fileName) => this.resolve(fileName));
+    return buildSemanticImpact({
+      touchedFiles,
+      baselineByFile: this.baselineExports,
+      currentProgram: program,
+      service: this.service,
+    });
   }
 
   private createHost(): ts.LanguageServiceHost {

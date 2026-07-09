@@ -40,10 +40,13 @@ const candidates = [
 ];
 
 const session = new Session(PROJECT);
-const { baseline, results } = session.checkAll(candidates, { withFixes: true });
+const { baseline, results, protocolVersion } = session.checkAll(candidates, {
+  withFixes: true,
+  withImpact: true,
+});
 
 process.stdout.write(
-  `project=${session.project}\nbaselineErrors=${baseline.errorCount}\nfiles=${session.fileCount()}\n\n`,
+  `protocolVersion=${protocolVersion}\nproject=${session.project}\nbaselineErrors=${baseline.errorCount}\nfiles=${session.fileCount()}\n\n`,
 );
 
 const passers = results
@@ -71,7 +74,16 @@ for (const result of failures) {
     process.stdout.write(`  ${diagnostic.file}:${at} ${diagnostic.code} ${diagnostic.message}\n`);
   }
   for (const fix of result.fixes) {
-    process.stdout.write(`  repair ${fix.forCode} ${fix.fixName}: ${fix.description}\n`);
+    process.stdout.write(
+      `  repair ${fix.forCode} ${fix.fixName} confidence=${fix.confidence}: ${fix.description}\n`,
+    );
+  }
+  if (result.impact !== null) {
+    for (const change of result.impact.changedExports) {
+      process.stdout.write(
+        `  impact ${change.name} ${change.kind} refs=${change.references.length}\n`,
+      );
+    }
   }
 }
 

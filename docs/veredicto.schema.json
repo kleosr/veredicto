@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kleosr/veredicto/docs/veredicto.schema.json",
+  "title": "veredicto CheckResponse",
+  "description": "Formal schema for POST /v1/check responses. Additive fields allowed within protocolVersion; meaning changes require a protocolVersion bump.",
+  "type": "object",
+  "required": ["protocolVersion", "project", "baseline", "results"],
+  "additionalProperties": true,
+  "properties": {
+    "protocolVersion": { "type": "integer", "const": 1 },
+    "project": { "type": "string", "minLength": 1 },
+    "baseline": {
+      "type": "object",
+      "required": ["errorCount"],
+      "additionalProperties": true,
+      "properties": {
+        "errorCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/CandidateResult" }
+    }
+  },
+  "$defs": {
+    "Position": {
+      "type": "object",
+      "required": ["line", "col"],
+      "additionalProperties": false,
+      "properties": {
+        "line": { "type": "integer", "minimum": 1 },
+        "col": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "VerdictDiagnostic": {
+      "type": "object",
+      "required": ["code", "category", "file", "position", "length", "message"],
+      "additionalProperties": true,
+      "properties": {
+        "code": { "type": "string", "pattern": "^TS[0-9]+$" },
+        "category": {
+          "type": "string",
+          "enum": ["error", "warning", "suggestion", "message"]
+        },
+        "file": { "type": "string" },
+        "position": {
+          "anyOf": [{ "$ref": "#/$defs/Position" }, { "type": "null" }]
+        },
+        "length": { "type": "integer", "minimum": 0 },
+        "message": { "type": "string" }
+      }
+    },
+    "RepairEdit": {
+      "type": "object",
+      "required": ["file", "position", "length", "newText"],
+      "additionalProperties": true,
+      "properties": {
+        "file": { "type": "string" },
+        "position": {
+          "anyOf": [{ "$ref": "#/$defs/Position" }, { "type": "null" }]
+        },
+        "length": { "type": "integer", "minimum": 0 },
+        "newText": { "type": "string" }
+      }
+    },
+    "RepairAction": {
+      "type": "object",
+      "required": [
+        "forCode",
+        "file",
+        "fixName",
+        "description",
+        "edits",
+        "confidence",
+        "preconditions"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "forCode": { "type": "string" },
+        "file": { "type": "string" },
+        "fixName": { "type": "string" },
+        "description": { "type": "string" },
+        "edits": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RepairEdit" }
+        },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+        "preconditions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "SymbolSpan": {
+      "type": "object",
+      "required": ["file", "name", "position", "length"],
+      "additionalProperties": true,
+      "properties": {
+        "file": { "type": "string" },
+        "name": { "type": "string" },
+        "position": {
+          "anyOf": [{ "$ref": "#/$defs/Position" }, { "type": "null" }]
+        },
+        "length": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ExportChange": {
+      "type": "object",
+      "required": ["file", "name", "kind", "before", "after", "references"],
+      "additionalProperties": true,
+      "properties": {
+        "file": { "type": "string" },
+        "name": { "type": "string" },
+        "kind": { "type": "string", "enum": ["added", "removed", "typeChanged"] },
+        "before": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "after": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "references": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SymbolSpan" }
+        }
+      }
+    },
+    "SemanticImpact": {
+      "type": "object",
+      "required": ["touchedFiles", "changedExports"],
+      "additionalProperties": true,
+      "properties": {
+        "touchedFiles": { "type": "array", "items": { "type": "string" } },
+        "changedExports": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ExportChange" }
+        }
+      }
+    },
+    "CandidateResult": {
+      "type": "object",
+      "required": [
+        "id",
+        "verdict",
+        "summary",
+        "newDiagnostics",
+        "fixedDiagnostics",
+        "fixes",
+        "impact"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "verdict": { "type": "string", "enum": ["pass", "fail"] },
+        "summary": {
+          "type": "object",
+          "required": ["newErrors", "fixedErrors", "totalErrors", "checkedMs"],
+          "additionalProperties": true,
+          "properties": {
+            "newErrors": { "type": "integer", "minimum": 0 },
+            "fixedErrors": { "type": "integer", "minimum": 0 },
+            "totalErrors": { "type": "integer", "minimum": 0 },
+            "checkedMs": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "newDiagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/VerdictDiagnostic" }
+        },
+        "fixedDiagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/VerdictDiagnostic" }
+        },
+        "fixes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RepairAction" }
+        },
+        "impact": {
+          "anyOf": [{ "$ref": "#/$defs/SemanticImpact" }, { "type": "null" }]
+        }
+      }
+    }
+  }
+}

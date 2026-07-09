@@ -6,10 +6,10 @@ This is the drop-in recipe. Goal: replace "spawn `tsc`, scrape stderr" with one 
 
 ```
 baseline session (once)
-  └─ for each candidate patch:
-       POST /v1/check  { candidates: [{ id, files }], fixes: true }
-         ├─ verdict === "pass"  → accept (optionally prefer higher fixedErrors)
-         └─ verdict === "fail"  → feed newDiagnostics (+ fixes) back to the model
+  └─ for each candidate patch (or a parallel batch):
+       POST /v1/check  { candidates, fixes: true, impact: true [, parallel: true] }
+         ├─ verdict === "pass"  → accept (prefer higher fixedErrors; inspect impact)
+         └─ verdict === "fail"  → feed newDiagnostics + fixes (+ impact) back to the model
 ```
 
 Disk is never written by veredicto. Your agent decides when (if ever) to flush a winning overlay to disk.
@@ -23,6 +23,7 @@ veredicto check \
   --project ./tsconfig.json \
   --candidates ./candidates.json \
   --fixes \
+  --impact \
   --compact
 ```
 
@@ -63,6 +64,7 @@ curl -s http://127.0.0.1:4117/v1/check \
   -d @- <<'EOF'
 {
   "fixes": true,
+  "impact": true,
   "candidates": [
     {
       "id": "attempt-3",
@@ -75,16 +77,19 @@ curl -s http://127.0.0.1:4117/v1/check \
 EOF
 ```
 
+For speculative batches (many candidates), set `"parallel": true` (optional `"workers": 2`). Each worker constructs its own Session — correct under concurrent overlays, higher init cost.
+
 ## Node library
 
 ```js
 import { Session } from "veredicto";
 
 const session = new Session(new URL("./tsconfig.json", import.meta.url).pathname);
-const { results } = session.checkAll(
+const { results, protocolVersion } = session.checkAll(
   [{ id: "a", files: { "src/x.ts": "export const n: number = 1;\n" } }],
-  { withFixes: true },
+  { withFixes: true, withImpact: true },
 );
+void protocolVersion;
 
 for (const result of results) {
   if (result.verdict === "pass") {

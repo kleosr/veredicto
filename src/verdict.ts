@@ -1,6 +1,12 @@
 import ts from "typescript";
+import type { SemanticImpact } from "./impact.js";
 
 export type DiagnosticCategory = "error" | "warning" | "suggestion" | "message";
+
+/** Wire protocol version. Additive fields allowed; meaning changes require a bump. */
+export const PROTOCOL_VERSION = 1 as const;
+
+export type FixConfidence = "high" | "medium" | "low";
 
 export interface Position {
   line: number;
@@ -29,6 +35,10 @@ export interface RepairAction {
   fixName: string;
   description: string;
   edits: RepairEdit[];
+  /** Heuristic: preferred TS fix names → high; multi-file → low; else medium. */
+  confidence: FixConfidence;
+  /** Machine-checkable conditions an agent should verify before applying. */
+  preconditions: string[];
 }
 
 export type CandidateFiles = Record<string, string | null>;
@@ -52,9 +62,12 @@ export interface CandidateResult {
   newDiagnostics: VerdictDiagnostic[];
   fixedDiagnostics: VerdictDiagnostic[];
   fixes: RepairAction[];
+  /** Present when requested; null when impact was not computed. */
+  impact: SemanticImpact | null;
 }
 
 export interface CheckResponse {
+  protocolVersion: typeof PROTOCOL_VERSION;
   project: string;
   baseline: { errorCount: number };
   results: CandidateResult[];
@@ -116,6 +129,59 @@ export function isError(diagnostic: VerdictDiagnostic): boolean {
   return diagnostic.category === "error";
 }
 
+export function classifyFixConfidence(
+  action: ts.CodeFixAction,
+  editFiles: readonly string[],
+): FixConfidence {
+  const uniqueFiles = new Set(editFiles);
+  if (uniqueFiles.size > 1) {
+    return "low";
+  }
+  if (action.fixAllDescription !== undefined || action.commands !== undefined) {
+    return "low";
+  }
+  const name = action.fixName ?? "";
+  // Heuristic over TypeScript's public fixName strings — not a credential list.
+  if (
+    name.startsWith("fix") ||
+    name.startsWith("import") ||
+    name.startsWith("addMissing") ||
+    name.startsWith("unusedIdentifier") ||
+    name.startsWith("classCorrect") ||
+    name.startsWith("constructorFor")
+  ) {
+    return "high";
+  }
+  return "medium";
+}
+
+export function fixPreconditions(
+  diagnostic: VerdictDiagnostic,
+  action: ts.CodeFixAction,
+  edits: readonly RepairEdit[],
+): string[] {
+  const preconditions = [
+    `diagnostic.code === ${JSON.stringify(diagnostic.code)}`,
+    `edits.length === ${edits.length}`,
+  ];
+  if (diagnostic.position !== null) {
+    preconditions.push(
+      `span.file === ${JSON.stringify(diagnostic.file)}`,
+      `span.line === ${diagnostic.position.line}`,
+      `span.col === ${diagnostic.position.col}`,
+      `span.length === ${diagnostic.length}`,
+    );
+  }
+  if (action.fixName !== undefined) {
+    preconditions.push(`fixName === ${JSON.stringify(action.fixName)}`);
+  }
+  const files = [...new Set(edits.map((edit) => edit.file))];
+  if (files.length > 1) {
+    preconditions.push("review.multiFileEdits === true");
+  }
+  return preconditions;
+}
+
 export function toRepairAction(
   diagnostic: VerdictDiagnostic,
   action: ts.CodeFixAction,
@@ -139,6 +205,11 @@ export function toRepairAction(
     fixName: action.fixName,
     description: action.description,
     edits,
+    confidence: classifyFixConfidence(
+      action,
+      edits.map((edit) => edit.file),
+    ),
+    preconditions: fixPreconditions(diagnostic, action, edits),
   };
 }
 
@@ -158,6 +229,13 @@ export function renderCompact(result: CandidateResult): string {
   }
   for (const diagnostic of result.fixedDiagnostics) {
     lines.push(`  - ${compactDiagnostic(diagnostic)}`);
+  }
+  if (result.impact !== null && result.impact.changedExports.length > 0) {
+    for (const change of result.impact.changedExports) {
+      lines.push(
+        `  ~ ${change.file} ${change.name} ${change.kind} refs=${change.references.length}`,
+      );
+    }
   }
   return lines.join("\n");
 }

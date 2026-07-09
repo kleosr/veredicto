@@ -16,9 +16,11 @@ veredicto takes the agent-first interface to the language agents already write a
 - Accepts candidates as in-memory file overlays: replace a file, add a new one, or delete one (`null`). Disk is never touched.
 - Computes the delta against the baseline: `newErrors`, `fixedErrors`, `totalErrors`. Pre-existing debt does not fail your patch; only regressions do.
 - Catches cross-file damage: patch `math.ts`, and the break it causes in `report.ts` shows up in the verdict.
-- Returns TypeScript code fixes for new errors as structured repair actions (`file`, `position`, `length`, `newText`).
+- Returns TypeScript code fixes for new errors as structured repair actions (`file`, `position`, `length`, `newText`) with `confidence` and `preconditions`.
+- Optional semantic impact: export signature delta + reference (def–use) fan-out via the checker (`impact: true` / `--impact`).
+- Optional speculative parallel checks via `worker_threads` (`parallel: true` / `--parallel`) — one Session per worker.
 - Speaks HTTP (`POST /v1/check`, `GET /v1/health`) and CLI, with agent-friendly exit codes: 0 all pass, 2 any fail, 1 usage or crash.
-- Has a `--compact` mode when tokens are the budget.
+- Has a `--compact` mode when tokens are the budget. Formal schema: [docs/veredicto.schema.json](docs/veredicto.schema.json).
 
 ## Quickstart
 
@@ -37,6 +39,9 @@ curl -s localhost:4117/v1/check -d '{
 
 # one-shot mode
 veredicto check --project path/to/tsconfig.json --candidates candidates.json --compact
+
+# agent-first extras
+veredicto check --project path/to/tsconfig.json --candidates candidates.json --fixes --impact --parallel
 ```
 
 From a clone, the same entry points are `npm run build` then `node dist/cli.js …`. Against the bundled fixture (`--project test/fixture/tsconfig.json`) you can watch `fixedErrors` move — the fixture ships with one deliberate baseline error.
@@ -47,38 +52,42 @@ From a clone, the same entry points are `npm run build` then `node dist/cli.js �
 
 ## Numbers
 
-Measured locally; full tables and methodology in [docs/BENCH.md](docs/BENCH.md):
+Before/after **agent loop** (write disk → spawn `tsc` → restore vs warm Session). Full tables: [docs/BENCH.md](docs/BENCH.md).
 
-| project | cold `tsc` / candidate | init (once) | warm / candidate | speedup |
-| --- | --- | --- | --- | --- |
-| Bundled fixture (2 files) | ~1,018 ms | ~384 ms | ~8.5 ms | ~119× |
-| Synthetic 200-module project | ~424 ms | ~492 ms | ~110 ms | ~4× |
+![veredicto before/after agent-loop benchmark](docs/assets/bench-chart.png)
 
-The honest claim: you stop paying process startup and full re-parse on every attempt. Init costs more on large repos; warm checks scale with what changed. Run your own:
+| project | candidates | BEFORE total | AFTER init+batch | full-loop | per-cand warm |
+| --- | --- | --- | --- | --- | --- |
+| Fixture (2 files) | 10 | ~10.0 s | ~0.45 s | **~22×** | **~104×** |
+| Layered app (92 files) | 10 | ~3.7 s | ~0.85 s | **~4.4×** | **~8.2×** |
+| Layered app (92 files) | 20 | ~7.5 s | ~1.3 s | **~5.9×** | **~8.7×** |
+
+Quote the **layered full-loop** ratio (~5.9× on 20 candidates) for anything resembling a real project. Fixture 104× is real but toy-scale. Reproduce:
 
 ```bash
-npm run bench                              # fixture
-npm run bench:large                        # generate 200 modules + bench
+npm run bench:compare              # fixture before/after
+npm run bench:compare:large        # layered ~92-file app
 npm run bench -- --project path/to/tsconfig.json
 ```
 
-## Limits (v0.1, on purpose)
+## Limits (on purpose)
 
-Candidates are full-file contents, not diffs. The delta is keyed by file + code + message, so two byte-identical errors in one file collapse into one. One process, candidates checked sequentially. No auth — serve binds loopback only and refuses anything else.
+Candidates are full-file contents, not diffs. The delta is keyed by file + code + message, so two byte-identical errors in one file collapse into one. Impact is export-signature + references, not a full reaching-definitions solver. No auth — serve binds loopback only and refuses anything else. Parallel mode re-inits a Session per worker (correct isolation, higher init cost).
 
 ## Roadmap
 
-Unified-diff input. Parallel candidate workers. A tsgo backend when Microsoft's native port stabilizes. Same protocol over other checkers.
+Unified-diff input. Span-anchored deltas. Deeper data-flow impact. A tsgo backend when Microsoft's native port stabilizes. Same protocol over other checkers.
 
 ## Development
 
 ```bash
 npm install
 npm run build
-npm test              # build + node:test suite (core + HTTP)
-npm run bench         # cold tsc vs warm session (fixture)
-npm run bench:large   # synthetic 200-module project
-npm run example:agent # drop-in agent loop against the fixture
+npm test                   # build + node:test suite (core + HTTP)
+npm run bench:compare      # before/after agent loop (fixture)
+npm run bench:compare:large # before/after on layered ~92-file app
+npm run bench              # micro: cold tsc vs warm overlay
+npm run example:agent      # drop-in agent loop against the fixture
 npm run lint          # Biome, every rule on, nursery included, must exit 0
 npm run semgrep       # full open-registry stack, must exit 0
 ```
@@ -89,7 +98,9 @@ npm run semgrep       # full open-registry stack, must exit 0
 | --- | --- |
 | [PITCH.md](PITCH.md) | Full thesis — problem, insight, risks, ask |
 | [ANNOUNCE.md](ANNOUNCE.md) | Short public announcement draft |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Post-checker phases; what TS owns vs veredicto |
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | Wire contract (HTTP + CLI + library) |
+| [docs/veredicto.schema.json](docs/veredicto.schema.json) | Formal JSON Schema for CheckResponse |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | Agent / CI integration recipe |
 | [docs/BENCH.md](docs/BENCH.md) | Measured numbers + how to reproduce |
 | [GOAL.md](GOAL.md) | Scope and done-criteria |

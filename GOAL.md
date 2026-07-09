@@ -1,35 +1,36 @@
-# GOAL — veredicto v0.1.0
+# GOAL — veredicto
 
-One sentence: a daemon + CLI that batch-verifies candidate TypeScript patches against a live project session and answers with structured verdicts (new/fixed/total errors, repair actions), not prose.
+One sentence: a daemon + CLI that batch-verifies candidate TypeScript patches against a live project session and answers with structured verdicts (new/fixed/total errors, repair actions, semantic impact), not prose — without reimplementing the TypeScript frontend.
 
-## Done criteria (binary)
+## v0.1.0 — done
 
-- [x] `npm run build` exits 0 (TypeScript 5.9.3, strict, NodeNext)
-- [x] `npm test` — 9/9 node:test cases pass (core + HTTP + loopback guard, one shared session)
-- [x] Cross-file regression detection proven by test: patch `math.ts`, error reported in `report.ts`
-- [x] New-file and deleted-file overlays proven by test
-- [x] `npm run bench` shows warm per-candidate check faster than cold `tsc --noEmit` (fixture + synthetic large project; see [docs/BENCH.md](docs/BENCH.md))
-- [x] `npx @biomejs/biome ci .` exits 0 — every rule on, nursery included, suppressions only inline with a reason
-- [x] `npm run semgrep` exits 0 — open-registry stack, 0 findings
-- [x] Pushed to GitHub, CI green on `main`
-- [x] Published to npm as `veredicto@0.1.0`
-- [x] Thesis docs shipped: [PITCH.md](PITCH.md), [ANNOUNCE.md](ANNOUNCE.md), [docs/PROTOCOL.md](docs/PROTOCOL.md), [docs/INTEGRATION.md](docs/INTEGRATION.md), [docs/BENCH.md](docs/BENCH.md)
-- [x] Drop-in agent example: [examples/agent-loop.mjs](examples/agent-loop.mjs)
-- [x] Serve refuses non-loopback hosts (v1 has no auth)
+- [x] Warm LanguageService session, overlays, delta verdicts, repairs, HTTP/CLI
+- [x] Cross-file / new-file / deleted-file tests; bench; Biome; semgrep
+- [x] GitHub + CI + npm `veredicto@0.1.0`
+- [x] Thesis docs (PITCH, ANNOUNCE, PROTOCOL, INTEGRATION, BENCH)
+- [x] Loopback-only serve
 
-## Scope fences (v0.1 will NOT)
+## v0.2 — agent-first post-checker phases (in progress locally)
 
-- Parse unified diffs — candidates are full-file contents
-- Run candidates in parallel workers
-- Wrap tsgo or any non-tsc checker
-- Add auth or allow non-loopback binding
+Architecture: keep TypeScript parser + checker; add phases after typechecking. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Next (not v0.1 done-criteria)
+- [x] Formal JSON Schema for CheckResponse ([docs/veredicto.schema.json](docs/veredicto.schema.json))
+- [x] `protocolVersion` on responses; `impact: null` when not requested
+- [x] Semantic impact: export signature diff + `findReferences` def–use fan-out (`impact: true` / `--impact`)
+- [x] Repair `confidence` + `preconditions`
+- [x] Speculative parallel candidates via `worker_threads` (`parallel: true` / `--parallel`)
+- [x] Tests covering impact, confidence, parallel (13/13)
+- [x] Publish `0.2.0` (schema, impact, confidence, parallel, before/after bench)
+- [ ] Full intra-procedural reaching-definitions (beyond export+refs) — deferred
+- [ ] Unified-diff input — deferred
+- [ ] Span-anchored diagnostic keys — deferred (D1)
 
-- First external integrator of `/v1/check` (framework / CLI agent / eval harness)
-- Real-repo bench numbers filed as issues (`npm run bench -- --project …`)
-- v0.2: unified-diff input, parallel workers, span-anchored deltas
+## Scope fences (still)
+
+- Do **not** rewrite the TypeScript frontend (Dragon Book ch. 2–8 for TS)
+- Do **not** add auth / non-loopback binds without a token design
+- Do **not** claim a full data-flow solver; impact is checker-backed export + references
 
 ## STUCK brake
 
-If TypeScript LanguageService overlay behavior diverges from documented semantics for more than 2 hours of investigation, stop, write STUCK.md with the smallest failing repro, and cut scope to CLI-only.
+If TypeScript LanguageService overlay or reference behavior diverges from documented semantics for more than 2 hours of investigation, stop, write STUCK.md with the smallest failing repro, and cut the failing phase.

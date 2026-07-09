@@ -7,6 +7,8 @@ import test from "node:test";
 // biome-ignore lint/correctness/noNodejsModules: Node-only tool; node: builtins are the platform.
 import { fileURLToPath } from "node:url";
 // biome-ignore lint/nursery/useImportRestrictions: tests exercise the built public artifact in dist.
+import { checkAllParallel } from "../dist/parallel.js";
+// biome-ignore lint/nursery/useImportRestrictions: tests exercise the built public artifact in dist.
 import { createServer } from "../dist/server.js";
 // biome-ignore lint/nursery/useImportRestrictions: tests exercise the built public artifact in dist.
 import { Session } from "../dist/session.js";
@@ -148,4 +150,50 @@ test("serve refuses non-loopback hosts", () => {
   );
   assert.equal(result.status, 1);
   assert.match(result.stderr, NON_LOOPBACK);
+});
+
+test("responses carry protocolVersion and null impact by default", () => {
+  const response = session.checkAll([NEUTRAL]);
+  assert.equal(response.protocolVersion, 1);
+  assert.equal(response.results[0].impact, null);
+});
+
+test("impact reports export signature change and reference fan-out", () => {
+  const result = session.checkCandidate(REGRESSION, { withImpact: true });
+  assert.equal(result.verdict, "fail");
+  assert.ok(result.impact !== null);
+  assert.ok(
+    result.impact.changedExports.some(
+      (change) => change.name === "add" && change.kind === "typeChanged",
+    ),
+  );
+  const addChange = result.impact.changedExports.find((change) => change.name === "add");
+  assert.ok(addChange !== undefined);
+  assert.ok(addChange.references.some((reference) => reference.file.endsWith("report.ts")));
+});
+
+test("fixes include confidence and preconditions", () => {
+  const result = session.checkCandidate(REGRESSION, { withFixes: true });
+  for (const fix of result.fixes) {
+    assert.ok(["high", "medium", "low"].includes(fix.confidence));
+    assert.ok(Array.isArray(fix.preconditions));
+    assert.ok(fix.preconditions.length > 0);
+  }
+});
+
+test("parallel workers preserve verdict order and semantics", async () => {
+  const response = await checkAllParallel(FIXTURE, [FIX, REGRESSION, NEUTRAL], {
+    withFixes: true,
+    withImpact: true,
+    workers: 2,
+  });
+  assert.equal(response.protocolVersion, 1);
+  assert.equal(response.results.length, 3);
+  assert.equal(response.results[0].id, "fix");
+  assert.equal(response.results[0].verdict, "pass");
+  assert.equal(response.results[1].id, "regression");
+  assert.equal(response.results[1].verdict, "fail");
+  assert.equal(response.results[2].id, "neutral");
+  assert.equal(response.results[2].verdict, "pass");
+  assert.ok(response.results[1].impact !== null);
 });

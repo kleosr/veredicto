@@ -1,6 +1,6 @@
 {
   "name": "veredicto",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Agent-native TypeScript checker: batch-verify candidate patches against a live project session and get structured verdicts, not prose.",
   "keywords": [
     "typescript",
@@ -25,8 +25,26 @@
   "bin": {
     "veredicto": "dist/cli.js"
   },
-  "main": "dist/session.js",
-  "types": "dist/session.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./parallel": {
+      "types": "./dist/parallel.d.ts",
+      "default": "./dist/parallel.js"
+    },
+    "./session": {
+      "types": "./dist/session.d.ts",
+      "default": "./dist/session.js"
+    },
+    "./verdict": {
+      "types": "./dist/verdict.d.ts",
+      "default": "./dist/verdict.js"
+    }
+  },
   "files": ["dist", "docs", "README.md", "LICENSE", "PITCH.md", "ANNOUNCE.md"],
   "scripts": {
     "build": "tsc -p .",
@@ -34,6 +52,8 @@
     "test": "npm run build && node --test 'test/**/*.test.mjs'",
     "bench": "npm run build && node bench/bench.mjs",
     "bench:large": "npm run build && node bench/generate-large.mjs && node bench/bench.mjs --project bench/large/tsconfig.json",
+    "bench:compare": "npm run build && node bench/compare.mjs",
+    "bench:compare:large": "npm run build && node bench/generate-large.mjs && node bench/compare.mjs --project bench/large/tsconfig.json --candidates 10 --workers 2",
     "example:agent": "npm run build && node examples/agent-loop.mjs",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
