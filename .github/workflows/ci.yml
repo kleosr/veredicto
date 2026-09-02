@@ -18,6 +18,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: test -f AGENTS.md
       - run: npm run build
       - run: npx @biomejs/biome ci .
       - run: node --test 'test/**/*.test.mjs'
