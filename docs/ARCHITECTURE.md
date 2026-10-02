@@ -52,7 +52,7 @@ Overlays, versioning, and `getCodeFixesAtPosition` / `findReferences` are Langua
 
 ## Parallelism model (v0.2)
 
-One `LanguageService` instance is **not** safe for concurrent overlay mutate/check/restore. Parallel candidates therefore use **one Session per worker** (`worker_threads`), each with its own service and baseline. That duplicates init cost across workers but keeps warm checks inside each worker independent. Sequential mode on a single Session remains the default (lowest memory, shared baseline).
+One `LanguageService` instance is **not** safe for concurrent overlay mutate/check/restore. Parallel candidates therefore use **one Session per worker** (`worker_threads`), each with its own service and baseline. Workers stay alive for the process, so the first parallel batch pays init and later batches reuse that Session. Sequential mode on a single Session remains the default (lowest memory, shared baseline).
 
 ## What "agent-first" means in the wire format
 

@@ -33,6 +33,7 @@ const { values } = parseArgs({
     project: { type: "string" },
     runs: { type: "string", default: "5" },
     file: { type: "string" },
+    phases: { type: "boolean", default: false },
   },
 });
 
@@ -44,6 +45,11 @@ if (!Number.isInteger(RUNS) || RUNS < 1) {
 
 const configPath = path.resolve(values.project ?? DEFAULT_CONFIG);
 const projectDir = path.dirname(configPath);
+
+if (values.phases === true) {
+  await runPhaseBench();
+  process.exit(0);
+}
 
 function average(samples) {
   return samples.reduce((sum, value) => sum + value, 0) / samples.length;
@@ -124,3 +130,70 @@ process.stdout.write(
     "",
   ].join("\n"),
 );
+
+function existingRelative(guesses) {
+  for (const relativePath of guesses) {
+    if (existsSync(path.join(projectDir, relativePath))) {
+      return relativePath;
+    }
+  }
+  return undefined;
+}
+
+function editCandidates(relativePath, runs) {
+  const originalText = readFileSync(path.join(projectDir, relativePath), "utf8");
+  return Array.from({ length: runs }, (_, index) => ({
+    id: `${relativePath}:${index}`,
+    files: {
+      [relativePath]: `${originalText.replace(TRAILING_WHITESPACE, "")}\n// veredicto-bench ${index}\n`,
+    },
+  }));
+}
+
+function timeBatch(session, candidates, options) {
+  const startedAt = performance.now();
+  const response = session.checkAll(candidates, options);
+  const wallMs = performance.now() - startedAt;
+  const checked = response.results.map((entry) => entry.summary.checkedMs);
+  return { wallMs, avgChecked: average(checked) };
+}
+
+async function runPhaseBench() {
+  const initStart = performance.now();
+  const session = new Session(configPath);
+  const initMs = performance.now() - initStart;
+  const narrowPath =
+    existingRelative(["src/routes/route000.ts", "src/report.ts", "src/math.ts"]) ??
+    pickPatchFile(session);
+  const fanoutPath =
+    existingRelative(["src/core/util000.ts", "src/math.ts"]) ?? pickPatchFile(session);
+  const narrow = editCandidates(narrowPath, RUNS);
+  const fanout = editCandidates(fanoutPath, RUNS);
+  const plainNarrow = timeBatch(session, narrow, {});
+  const plainFanout = timeBatch(session, fanout, {});
+  const withExtras = timeBatch(session, narrow, { withFixes: true, withImpact: true });
+  const { checkAllParallel } = await import("../dist/parallel.js");
+  const parallelOptions = { workers: 2, withFixes: true, withImpact: true };
+  const coldStart = performance.now();
+  await checkAllParallel(configPath, narrow, parallelOptions);
+  const parallelColdMs = performance.now() - coldStart;
+  const warmStart = performance.now();
+  await checkAllParallel(configPath, narrow, parallelOptions);
+  const parallelWarmMs = performance.now() - warmStart;
+  process.stdout.write(
+    [
+      "=== veredicto phase bench ===",
+      `project: ${configPath}`,
+      `root files: ${session.fileCount()}`,
+      `baseline errors: ${session.baselineErrorCount()}`,
+      `runs: ${RUNS}`,
+      `init once: ${initMs.toFixed(0)} ms`,
+      `narrow ${narrowPath}: wall avg ${(plainNarrow.wallMs / RUNS).toFixed(1)} ms, checked avg ${plainNarrow.avgChecked.toFixed(1)} ms`,
+      `fan-out ${fanoutPath}: wall avg ${(plainFanout.wallMs / RUNS).toFixed(1)} ms, checked avg ${plainFanout.avgChecked.toFixed(1)} ms`,
+      `narrow fixes+impact: wall avg ${(withExtras.wallMs / RUNS).toFixed(1)} ms, checked avg ${withExtras.avgChecked.toFixed(1)} ms`,
+      `parallel cold batch (workers=2, fixes+impact): ${parallelColdMs.toFixed(0)} ms`,
+      `parallel warm batch (workers=2, fixes+impact): ${parallelWarmMs.toFixed(0)} ms`,
+      "",
+    ].join("\n"),
+  );
+}

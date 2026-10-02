@@ -105,23 +105,26 @@ export function toVerdictDiagnostic(diagnostic: ts.Diagnostic): VerdictDiagnosti
   };
 }
 
-// ponytail: keyed by file+code+message, not span, so a moved-but-unchanged
-// diagnostic still matches its baseline twin. Ceiling: two byte-identical
-// errors in one file collapse into one key. Upgrade path: span anchoring for
-// files the candidate did not touch.
-export function diagnosticKey(diagnostic: VerdictDiagnostic): string {
-  return `${diagnostic.file}|${diagnostic.code}|${diagnostic.message}`;
+export function diagnosticKey(diagnostic: VerdictDiagnostic, anchorSpan: boolean): string {
+  const base = `${diagnostic.file}|${diagnostic.code}|${diagnostic.message}`;
+  if (!anchorSpan || diagnostic.position === null) {
+    return base;
+  }
+  return `${base}|${diagnostic.position.line}|${diagnostic.position.col}|${diagnostic.length}`;
 }
 
 export function diffDiagnostics(
   baseline: VerdictDiagnostic[],
   current: VerdictDiagnostic[],
+  touchedFiles?: ReadonlySet<string>,
 ): DiagnosticDelta {
-  const baselineKeys = new Set(baseline.map(diagnosticKey));
-  const currentKeys = new Set(current.map(diagnosticKey));
+  const keyOf = (diagnostic: VerdictDiagnostic): string =>
+    diagnosticKey(diagnostic, touchedFiles !== undefined && !touchedFiles.has(diagnostic.file));
+  const baselineKeys = new Set(baseline.map(keyOf));
+  const currentKeys = new Set(current.map(keyOf));
   return {
-    added: current.filter((diagnostic) => !baselineKeys.has(diagnosticKey(diagnostic))),
-    removed: baseline.filter((diagnostic) => !currentKeys.has(diagnosticKey(diagnostic))),
+    added: current.filter((diagnostic) => !baselineKeys.has(keyOf(diagnostic))),
+    removed: baseline.filter((diagnostic) => !currentKeys.has(keyOf(diagnostic))),
   };
 }
 

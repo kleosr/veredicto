@@ -23,7 +23,7 @@ for each candidate:
   restore overlays
 ```
 
-Optional: `--parallel` / `workers` — one Session per worker (correct isolation; re-pays init per worker).
+Optional: `--parallel` / `workers` — one Session per worker (correct isolation). The first batch in a process pays init; later batches reuse the worker.
 
 Candidates are not “append a comment”. They include a real baseline fix, a cross-file signature regression, and neutral edits — the shapes an agent actually emits.
 
@@ -99,7 +99,7 @@ Cross-file signal on the layered project: `break-core-signature` failed with `ne
 
 1. **Full-loop ratio is the honest product metric.** Agents pay N cold `tsc` starts today; with veredicto they pay init once + N warm checks. On the 92-file app with 20 candidates that is ~5.9× wall-clock.
 2. **Per-candidate warm ratio ignores init.** Useful for “how fast is attempt #2…#N”, not for “first request in a cold process”.
-3. **Parallel is not free.** Each worker constructs its own Session. On this machine, 2 workers did not beat sequential init+batch on the 10-candidate layered run (841 ms vs 852 ms) because init dominates. Parallel helps when candidate count is high *and* workers stay warm across batches (warm pool — still DEBT D4).
+3. **Parallel is not free on the first batch.** Each worker constructs its own Session. Later batches in the same process reuse that Session. See the phase bench below.
 4. **Page cache helps cold `tsc`.** Sequential BEFORE runs share a warm filesystem cache. A colder disk / CI container widens BEFORE times (historical fixture container: ~6.6 s cold `tsc`).
 5. **Do not quote fixture 104× for a monorepo.** Quote the layered numbers or your own `--project` run.
 
@@ -112,9 +112,27 @@ Cross-file signal on the layered project: `break-core-signature` failed with `ne
 | Fixture (earlier this session) | ~1,018 ms | ~384 ms | ~8.5 ms |
 | Old linear 200-module chain | ~424 ms | ~492 ms | ~110 ms |
 
+## Phase bench (warm path only)
+
+`npm run bench:phases` times init, a narrow edit, a fan-out edit, fixes+impact, and two parallel batches. It does not spawn cold `tsc`.
+
+```bash
+npm run bench:phases
+npm run bench:phases:wide   # ~182-file layered app
+```
+
+Measured on this machine (Node 22) on 2026-10-02, 6 runs, fixes+impact on the narrow file for the parallel rows.
+
+| project | files | init | narrow / cand | fan-out / cand | fixes+impact / cand | parallel cold batch | parallel warm batch |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Fixture | 3 | 656 ms | 6.5 ms | 5.1 ms | 7.9 ms | 1,082 ms | 17 ms |
+| Wide layered app | 182 | 744 ms | 12.4 ms | 8.4 ms | 13.6 ms | 1,175 ms | 37 ms |
+
+Before this pass, the same 182-file app rechecked every file and took about **179 ms** per warm candidate. The warm path now rechecks the edited file and its importers, and keeps script snapshots. The first parallel batch still pays worker init; the second batch reuses the workers.
+
 ## What this does *not* measure
 
 - Token savings from structured JSON vs scraping `tsc` prose
 - Network RTT to `POST /v1/check` (loopback only; add your own if needed)
 - Unified-diff apply cost
-- A warm worker pool across HTTP requests (each parallel batch re-inits today)
+- A warm worker pool that survives process exit (workers live only as long as the process; `serve` keeps them)

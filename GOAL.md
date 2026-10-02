@@ -23,7 +23,7 @@ Architecture: keep TypeScript parser + checker; add phases after typechecking. S
 - [x] Publish `0.2.0` (schema, impact, confidence, parallel, before/after bench)
 - [ ] Full intra-procedural reaching-definitions (beyond export+refs) — deferred
 - [ ] Unified-diff input — deferred
-- [ ] Span-anchored diagnostic keys — deferred (D1)
+- [x] Span-anchored diagnostic keys for files the candidate did not touch (edited files stay on file+code+message)
 
 ## Scope fences (still)
 

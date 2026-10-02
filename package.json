@@ -51,6 +51,8 @@
     "prepublishOnly": "npm run build",
     "test": "npm run build && node --test 'test/**/*.test.mjs'",
     "bench": "npm run build && node bench/bench.mjs",
+    "bench:phases": "npm run build && node bench/bench.mjs --phases",
+    "bench:phases:wide": "npm run build && node bench/generate-large.mjs --out bench/wide --core 80 --services 60 --routes 40 && node bench/bench.mjs --phases --project bench/wide/tsconfig.json --runs 6",
     "bench:large": "npm run build && node bench/generate-large.mjs && node bench/bench.mjs --project bench/large/tsconfig.json",
     "bench:compare": "npm run build && node bench/compare.mjs",
     "bench:compare:large": "npm run build && node bench/generate-large.mjs && node bench/compare.mjs --project bench/large/tsconfig.json --candidates 10 --workers 2",

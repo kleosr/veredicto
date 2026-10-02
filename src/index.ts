@@ -14,7 +14,7 @@ export type {
   RepairEdit,
   VerdictDiagnostic,
 } from "./verdict.js";
-export { PROTOCOL_VERSION, renderCompact, validateCandidates } from "./verdict.js";
+export { PROTOCOL_VERSION, diffDiagnostics, renderCompact, validateCandidates } from "./verdict.js";
 export type {
   ExportChange,
   ExportChangeKind,

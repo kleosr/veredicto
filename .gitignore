@@ -1,6 +1,7 @@
 node_modules/
 dist/
 bench/large/
+bench/wide/
 *.log
 .DS_Store
 *.tgz

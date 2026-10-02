@@ -6,12 +6,11 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 // biome-ignore lint/correctness/noNodejsModules: Node-only tool; node: builtins are the platform.
 import { fileURLToPath } from "node:url";
+import { Session, diffDiagnostics } from "../dist/index.js";
 // biome-ignore lint/nursery/useImportRestrictions: tests exercise the built public artifact in dist.
 import { checkAllParallel } from "../dist/parallel.js";
 // biome-ignore lint/nursery/useImportRestrictions: tests exercise the built public artifact in dist.
 import { createServer } from "../dist/server.js";
-// biome-ignore lint/nursery/useImportRestrictions: tests exercise the built public artifact in dist.
-import { Session } from "../dist/session.js";
 
 const CLI = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const NON_LOOPBACK = /non-loopback/;
@@ -53,9 +52,9 @@ const DELETE_FILE = {
 
 const session = new Session(FIXTURE);
 
-test("baseline captures the fixture's single known error", () => {
-  assert.equal(session.baselineErrorCount(), 1);
-  assert.equal(session.baseline[0].code, "TS2322");
+test("baseline captures the fixture's two known errors", () => {
+  assert.equal(session.baselineErrorCount(), 2);
+  assert.ok(session.baseline.every((diagnostic) => diagnostic.code === "TS2322"));
 });
 
 test("neutral patch passes and does not hide baseline debt", () => {
@@ -63,7 +62,7 @@ test("neutral patch passes and does not hide baseline debt", () => {
   assert.equal(result.verdict, "pass");
   assert.equal(result.summary.newErrors, 0);
   assert.equal(result.summary.fixedErrors, 0);
-  assert.equal(result.summary.totalErrors, 1);
+  assert.equal(result.summary.totalErrors, 2);
 });
 
 test("regression in one file is reported in its dependents", () => {
@@ -78,7 +77,7 @@ test("a real fix removes the baseline error", () => {
   const result = session.checkCandidate(FIX);
   assert.equal(result.verdict, "pass");
   assert.equal(result.summary.fixedErrors, 1);
-  assert.equal(result.summary.totalErrors, 0);
+  assert.equal(result.summary.totalErrors, 1);
 });
 
 test("a brand-new file joins the check", () => {
@@ -100,10 +99,10 @@ test("a deleted file is removed from the program", () => {
 });
 
 test("session state is clean after every candidate", () => {
-  assert.equal(session.baselineErrorCount(), 1);
+  assert.equal(session.baselineErrorCount(), 2);
   const again = session.checkCandidate(NEUTRAL);
   assert.equal(again.verdict, "pass");
-  assert.equal(again.summary.totalErrors, 1);
+  assert.equal(again.summary.totalErrors, 2);
 });
 
 test("http api returns the same verdicts and rejects bad input", async () => {
@@ -117,7 +116,7 @@ test("http api returns the same verdicts and rejects bad input", async () => {
   assert.equal(health.status, 200);
   const healthBody = await health.json();
   assert.equal(healthBody.ok, true);
-  assert.equal(healthBody.baselineErrors, 1);
+  assert.equal(healthBody.baselineErrors, 2);
 
   const check = await fetch(`http://127.0.0.1:${port}/v1/check`, {
     method: "POST",
@@ -196,4 +195,48 @@ test("parallel workers preserve verdict order and semantics", async () => {
   assert.equal(response.results[2].id, "neutral");
   assert.equal(response.results[2].verdict, "pass");
   assert.ok(response.results[1].impact !== null);
+});
+
+test("regression: a line shift in a touched file is not a new error", () => {
+  const shifted = session.checkCandidate({
+    id: "shift",
+    files: {
+      "src/report.ts":
+        '\nimport { add } from "./math.js";\n\nexport const total: string = add(1, 2);\n',
+    },
+  });
+  assert.equal(shifted.verdict, "pass");
+  assert.equal(shifted.summary.newErrors, 0);
+  assert.equal(shifted.summary.totalErrors, 2);
+});
+
+test("regression: identical errors in an untouched file stay distinct", () => {
+  const message = "Type 'string' is not assignable to type 'number'.";
+  const diagnostic = (line) => ({
+    code: "TS2322",
+    category: "error",
+    file: "/proj/twins.ts",
+    position: { line, col: 14 },
+    length: 4,
+    message,
+  });
+  const delta = diffDiagnostics(
+    [diagnostic(1), diagnostic(2)],
+    [diagnostic(2)],
+    new Set(["/proj/other.ts"]),
+  );
+  assert.equal(delta.removed.length, 1);
+  assert.equal(delta.removed[0].position.line, 1);
+  assert.equal(delta.added.length, 0);
+});
+
+test("regression: a second parallel batch keeps the same verdicts", async () => {
+  const first = await checkAllParallel(FIXTURE, [FIX, REGRESSION, NEUTRAL], { workers: 2 });
+  const second = await checkAllParallel(FIXTURE, [FIX, REGRESSION, NEUTRAL], { workers: 2 });
+  assert.deepEqual(
+    second.results.map((result) => result.verdict),
+    first.results.map((result) => result.verdict),
+  );
+  assert.equal(second.results[1].verdict, "fail");
+  assert.equal(second.results[0].verdict, "pass");
 });

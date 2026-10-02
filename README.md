@@ -72,7 +72,7 @@ npm run bench -- --project path/to/tsconfig.json
 
 ## Limits
 
-Candidates are full-file contents, not diffs. The delta is keyed by file + code + message, so two byte-identical errors in one file collapse into one. Impact is export-signature + references, not a full reaching-definitions solver. No auth: serve binds loopback only and refuses anything else. Parallel mode re-inits a Session per worker (correct isolation, higher init cost).
+Candidates are full-file contents, not diffs. Edited files are keyed by file + code + message, so a line shift is not a new error and two byte-identical errors in one edited file still collapse. Untouched files include the span. Impact is export-signature + references, not a full reaching-definitions solver. No auth: serve binds loopback only and refuses anything else. Parallel mode keeps one Session per worker for the process (first batch pays init).
 
 ## Roadmap
 

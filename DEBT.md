@@ -4,10 +4,9 @@ Deferred work. Not a roadmap wish-list: only items that are true today and unpai
 
 | ID | Item | Why deferred | Upgrade path |
 | --- | --- | --- | --- |
-| D1 | Delta keyed by `file\|code\|message` | Span anchoring needs careful baseline matching for untouched files | Span-anchored keys for files the candidate did not touch |
+| D1 | Touched-file delta still keyed by `file\|code\|message` | A line shift in an edited file must not look like a new error | Two byte-identical errors in one edited file still collapse |
 | D2 | Code-fix provider errors swallowed | A missing suggestion is acceptable; a crashed check is not | Surface provider failure as a non-failing field |
 | D3 | Candidates are full-file contents | Diff parsing is a product surface | Unified-diff input |
-| D4 | Parallel workers re-init Session each worker | Correct isolation; init cost duplicated | Warm worker pool that keeps Sessions alive across requests |
 | D5 | CI actions still on Node-20 runtime under the hood | Pinned SHAs work; deprecation annotation only | Bump action SHAs when Node-24-native chosen |
 | D6 | No external integrator yet | Artifact shipped; adoption is the next job | First framework / CLI agent / eval harness |
 | D7 | Large-repo numbers are synthetic (200 modules) | Real customer repos vary | Collect `npm run bench -- --project …` reports |
@@ -16,6 +15,8 @@ Deferred work. Not a roadmap wish-list: only items that are true today and unpai
 
 Resolved recently:
 
+- Untouched-file diagnostic keys include the span. Edited files stay on `file|code|message`.
+- Parallel workers keep their Session for the life of the process. The first batch pays init; later batches reuse it.
 - Non-loopback `--host` without auth → rejected.
 - Thesis docs + large bench generator → shipped.
 - Parallel candidate workers (process isolation via worker_threads) → shipped.

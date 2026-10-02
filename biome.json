@@ -6,6 +6,7 @@
       "node_modules",
       "package-lock.json",
       "bench/large",
+      "bench/wide",
       "gitleaks-report.json",
       "noseyparker-report.json",
       "sbom.spdx.json"

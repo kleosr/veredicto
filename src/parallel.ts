@@ -50,16 +50,58 @@ function chunk<T>(items: readonly T[], parts: number): T[][] {
   return chunks;
 }
 
-function runWorker(request: WorkerRequest): Promise<WorkerSuccess> {
+interface Lane {
+  worker: Worker;
+  chain: Promise<void>;
+}
+
+const lanesByProject = new Map<string, Lane[]>();
+
+function spawnWorker(): Worker {
+  const worker = new Worker(WORKER_PATH);
+  worker.unref();
+  return worker;
+}
+
+function laneAt(project: string, index: number): Lane {
+  let lanes = lanesByProject.get(project);
+  if (lanes === undefined) {
+    lanes = [];
+    lanesByProject.set(project, lanes);
+  }
+  const existing = lanes[index];
+  if (existing !== undefined) {
+    return existing;
+  }
+  const created: Lane = { worker: spawnWorker(), chain: Promise.resolve() };
+  lanes[index] = created;
+  return created;
+}
+
+function dispatch(project: string, index: number, request: WorkerRequest): Promise<WorkerSuccess> {
+  const lane = laneAt(project, index);
+  const pending = lane.chain.then(() => askWorker(lane, request));
+  lane.chain = pending.then(
+    () => undefined,
+    () => undefined,
+  );
+  return pending;
+}
+
+function askWorker(lane: Lane, request: WorkerRequest): Promise<WorkerSuccess> {
+  const worker = lane.worker;
   return new Promise((resolvePromise, rejectPromise) => {
     let settled = false;
-    const worker = new Worker(WORKER_PATH, { workerData: request });
     const finish = (error: Error | null, value?: WorkerSuccess): void => {
       if (settled) {
         return;
       }
       settled = true;
+      worker.off("message", onMessage);
+      worker.off("error", onError);
+      worker.off("exit", onExit);
       if (error !== null) {
+        lane.worker = spawnWorker();
         rejectPromise(error);
         return;
       }
@@ -69,21 +111,23 @@ function runWorker(request: WorkerRequest): Promise<WorkerSuccess> {
       }
       resolvePromise(value);
     };
-    worker.once("message", (message: WorkerResponse) => {
+    const onMessage = (message: WorkerResponse): void => {
       if (message.ok) {
         finish(null, message);
-      } else {
-        finish(new Error(message.error));
+        return;
       }
-    });
-    worker.once("error", (error) => {
+      finish(new Error(message.error));
+    };
+    const onError = (error: Error): void => {
       finish(error);
-    });
-    worker.once("exit", (code) => {
-      if (code !== 0) {
-        finish(new Error(`check worker exited with code ${code}`));
-      }
-    });
+    };
+    const onExit = (code: number): void => {
+      finish(new Error(`check worker exited with code ${code}`));
+    };
+    worker.on("message", onMessage);
+    worker.once("error", onError);
+    worker.once("exit", onExit);
+    worker.postMessage(request);
   });
 }
 
@@ -110,8 +154,8 @@ export async function checkAllParallel(
   );
   const groups = chunk(candidates, maxWorkers);
   const settled = await Promise.all(
-    groups.map((group) =>
-      runWorker({
+    groups.map((group, index) =>
+      dispatch(project, index, {
         project,
         candidates: group,
         withFixes: options.withFixes === true,
