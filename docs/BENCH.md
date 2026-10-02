@@ -123,6 +123,8 @@ npm run bench:phases:wide   # ~182-file layered app
 
 Measured on this machine (Node 22) on 2026-10-02, 6 runs, fixes+impact on the narrow file for the parallel rows.
 
+![Warm check before and after](assets/warm-check-before-after.png)
+
 | project | files | init | narrow / cand | fan-out / cand | fixes+impact / cand | parallel cold batch | parallel warm batch |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Fixture | 3 | 656 ms | 6.5 ms | 5.1 ms | 7.9 ms | 1,082 ms | 17 ms |

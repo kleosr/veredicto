@@ -56,6 +56,10 @@ Before/after **agent loop** (write disk → spawn `tsc` → restore vs warm Sess
 
 ![veredicto before/after agent-loop benchmark](docs/assets/bench-chart.png)
 
+Warm check on the 182-file app, before the partial recheck and after it:
+
+![Warm check before and after](docs/assets/warm-check-before-after.png)
+
 | project | candidates | BEFORE total | AFTER init+batch | full-loop | per-cand warm |
 | --- | --- | --- | --- | --- | --- |
 | Fixture (2 files) | 10 | ~10.0 s | ~0.45 s | **~22×** | **~104×** |
